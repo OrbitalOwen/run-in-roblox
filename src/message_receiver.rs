@@ -13,7 +13,7 @@ type HyperResponse = Box<dyn Future<Item = Response<Body>, Error = hyper::Error>
 #[derive(Debug, Clone)]
 pub enum Message {
     Start,
-    Stop,
+    Stop(Stop),
     Messages(Vec<RobloxMessage>),
 }
 
@@ -21,6 +21,11 @@ pub enum Message {
 #[serde(tag = "type")]
 pub enum RobloxMessage {
     Output { level: OutputLevel, body: String },
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Stop {
+    pub code: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -70,8 +75,17 @@ impl MessageReceiver {
                             *response.body_mut() = Body::from("Started");
                         }
                         (&Method::POST, "/stop") => {
-                            message_tx.send(Message::Stop).unwrap();
-                            *response.body_mut() = Body::from("Finished");
+                            let future = request.into_body().concat2().map(move |chunk| {
+                                let source = chunk.to_vec();
+                                let body: Stop = serde_json::from_slice(&source)
+                                    .expect("Failed deserializing stop message from Roblox Studio");
+
+                                message_tx.send(Message::Stop(body)).unwrap();
+                                *response.body_mut() = Body::from("Finished");
+                                response
+                            });
+
+                            return Box::new(future);
                         }
                         (&Method::POST, "/messages") => {
                             let message_tx = message_tx.clone();

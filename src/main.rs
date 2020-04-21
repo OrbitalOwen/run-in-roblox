@@ -71,11 +71,10 @@ fn run(options: Options) -> Result<i32, anyhow::Error> {
 
     let (sender, receiver) = mpsc::channel();
 
-    thread::spawn(move || {
-        place_runner.run(sender).unwrap();
+    let child: thread::JoinHandle<i32> = thread::spawn(move || {
+        let exit_code: i32 = place_runner.run(sender).unwrap();
+        exit_code
     });
-
-    let mut exit_code = 0;
 
     while let Some(message) = receiver.recv()? {
         match message {
@@ -88,13 +87,11 @@ fn run(options: Options) -> Result<i32, anyhow::Error> {
                 };
 
                 println!("{}", colored_body);
-
-                if level == OutputLevel::Error {
-                    exit_code = 1;
-                }
             }
         }
     }
+
+    let exit_code = child.join().expect("Error in place_runner thread");
 
     Ok(exit_code)
 }

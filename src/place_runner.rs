@@ -32,7 +32,7 @@ pub struct PlaceRunner {
 }
 
 impl PlaceRunner {
-    pub fn run(&self, sender: mpsc::Sender<Option<RobloxMessage>>) -> Result<(), anyhow::Error> {
+    pub fn run(&self, sender: mpsc::Sender<Option<RobloxMessage>>) -> Result<i32, anyhow::Error> {
         let studio_install =
             RobloxStudio::locate().context("Could not locate a Roblox Studio installation.")?;
 
@@ -73,10 +73,13 @@ impl PlaceRunner {
             _ => bail!("Invalid first message received from Roblox Studio plugin"),
         }
 
+        let exit_code: i32;
+
         loop {
             match message_receiver.recv() {
                 Message::Start => {}
-                Message::Stop => {
+                Message::Stop(body) => {
+                    exit_code = body.code;
                     sender.send(None)?;
                     break;
                 }
@@ -91,6 +94,9 @@ impl PlaceRunner {
         message_receiver.stop();
         fs::remove_file(&plugin_file_path)?;
 
-        Ok(())
+        match exit_code {
+            0..=255 => Ok(exit_code),
+            _ => bail!("Exit code is out of range"),
+        }
     }
 }

@@ -64,34 +64,55 @@ local logConnection = LogService.MessageOut:Connect(function(body, messageType)
 	})
 end)
 
+
+
+local stopped = false
+local function stop(exit_code)
+	if stopped then
+		return
+	end
+	stopped = true
+
+	-- Wait for any remaining messages to be sent to LogService, then flush them
+	-- explicitly.
+	wait(2 * messageSendRate)
+	heartbeatConnection:Disconnect()
+	logConnection:Disconnect()
+	flushMessages()
+
+	local body = HttpService:JSONEncode({code = exit_code})
+	HttpService:PostAsync(SERVER_URL .. "/stop", body)
+end
+
+local function reportScriptError(message, code)
+	local sacrificialEvent = Instance.new("BindableEvent")
+	sacrificialEvent.Event:Connect(error)
+	sacrificialEvent:Fire(message, 1)
+
+	stop(code)
+end
+
+local function userExitFunc(code)
+	local message = string.format("The exit function was called with code %i", code)
+
+	reportScriptError(message, code)
+end
+
+local function runScript()
+	local requireSuccess, requireResult = xpcall(require, debug.traceback, script.Main)
+	if requireSuccess then
+		local runSuccess, runResult = xpcall(requireResult, debug.traceback, userExitFunc)
+		if runSuccess then
+			stop(0)
+		else
+			reportScriptError(runResult, 1)
+		end
+	else
+		reportScriptError(requireResult, 1)
+	end
+end
+
 HttpService:PostAsync(SERVER_URL .. "/start", "")
+runScript()
 
-local loadSuccess, messageOrMain = xpcall(require, debug.traceback, script.Main)
 
-if not loadSuccess then
-	local sacrificialEvent = Instance.new("BindableEvent")
-	sacrificialEvent.Event:Connect(function()
-		error(messageOrMain, 0)
-	end)
-	sacrificialEvent:Fire()
-end
-
-local mainSuccess, message = xpcall(messageOrMain, debug.traceback)
-
-if not mainSuccess then
-	local sacrificialEvent = Instance.new("BindableEvent")
-	sacrificialEvent.Event:Connect(function()
-		error(message, 0)
-	end)
-	sacrificialEvent:Fire()
-end
-
--- Wait for any remaining messages to be sent to LogService, then flush them
--- explicitly.
-wait(2 * messageSendRate)
-heartbeatConnection:Disconnect()
-logConnection:Disconnect()
-
-flushMessages()
-
-HttpService:PostAsync(SERVER_URL .. "/stop", "")
