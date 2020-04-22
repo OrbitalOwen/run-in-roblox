@@ -92,16 +92,10 @@ local function reportScriptError(message, code)
 	stop(code)
 end
 
-local function userExitFunc(code)
-	local message = string.format("The exit function was called with code %i", code)
-
-	reportScriptError(message, code)
-end
-
 local function runScript()
 	local requireSuccess, requireResult = xpcall(require, debug.traceback, script.Main)
 	if requireSuccess then
-		local runSuccess, runResult = xpcall(requireResult, debug.traceback, userExitFunc)
+		local runSuccess, runResult = xpcall(requireResult, debug.traceback)
 		if runSuccess then
 			stop(0)
 		else

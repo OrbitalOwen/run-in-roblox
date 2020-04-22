@@ -42,7 +42,7 @@ impl<'a> RunInRbxPlugin<'a> {
             },
         };
 
-        let main_source = format!("return function(exit)\n{}\nend", self.lua_script);
+        let main_source = format!("return function()\n{}\nend", self.lua_script);
 
         let injected_main = RbxInstanceProperties {
             name: "Main".to_owned(),
