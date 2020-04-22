@@ -1,0 +1,23 @@
+name: Build
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+
+      - name: Build release binary
+        run: cargo build --verbose --locked --release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: run-in-roblox-win64
+          path: target/release/run-in-roblox.exe
